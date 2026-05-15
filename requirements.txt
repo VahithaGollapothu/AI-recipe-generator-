@@ -1,0 +1,12 @@
+streamlit
+openai
+groq
+python-dotenv
+pandas
+plotly
+numpy
+requests
+speechrecognition
+gTTS
+pyttsx3
+pyaudio
