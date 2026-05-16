@@ -6,5 +6,5 @@ pandas
 plotly
 numpy
 requests
-speechrecognition
+gTTS
 gTTS

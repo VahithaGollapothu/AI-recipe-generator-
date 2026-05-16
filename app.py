@@ -4,7 +4,7 @@ from utils.theme import apply_theme
 from pages.meal_planner import show_meal_planner
 from pages.nutrition_dashboard import show_nutrition_dashboard
 from pages.chatbot import show_chatbot
-from utils.api_handler import generate_recipe
+from utils.api_handler import generate_recipe, _groq_ready
 import time
 
 try:
@@ -79,14 +79,20 @@ with st.sidebar:
         "💬 AI Chatbot": "chatbot"
     }
 
-    for page_name, page_key in pages.items():
-        if st.button(page_name, key=f"nav_{page_key}",
-                    use_container_width=True,
-                    type="primary" if st.session_state.current_page == page_key else "secondary"):
-            st.session_state.current_page = page_key
-            st.rerun()
+    page_names = list(pages.keys())
+    current_index = page_names.index(next((name for name, key in pages.items() if key == st.session_state.current_page), page_names[0]))
+    selected_page = st.selectbox("Go to", page_names, index=current_index)
+    st.session_state.current_page = pages[selected_page]
 
     st.divider()
+
+    ready, error = _groq_ready()
+    if not ready:
+        st.warning(
+            "AI backend is not ready: " + error + "\n\n" \
+            "Recipe generation, meal planning, chatbot, and nutrition features require Groq AI."
+        )
+
     st.caption("© 2024 AI Recipe Generator")
 
 # Main content
@@ -147,29 +153,39 @@ def show_recipe_generator():
 
         # Voice input
         voice_available = is_voice_input_available()
-        if voice_available:
+        # Allow an explicit user override when running locally or for testing
+        st.checkbox("Enable voice input (experimental)", key="voice_override")
+        voice_override = st.session_state.get("voice_override", False)
+        show_voice = voice_available or voice_override
+
+        if show_voice:
             if st.button("🎤 Voice Input", key="voice_input"):
                 with st.spinner("Listening..."):
-                    recognizer = sr.Recognizer()
-                    try:
-                        with sr.Microphone() as source:
-                            st.info("Speak your ingredients...")
-                            audio = recognizer.listen(source, timeout=5)
-                            text = recognizer.recognize_google(audio)
-                            st.session_state["voice_text_to_add"] = text
-                    except sr.WaitTimeoutError:
-                        st.error("No speech detected")
-                    except sr.UnknownValueError:
-                        st.error("Could not understand speech")
-                    except sr.RequestError:
-                        st.error("Speech recognition service unavailable")
-                    except AttributeError:
-                        st.error("Microphone unavailable in this environment.")
-                    except OSError:
-                        st.error("No microphone device detected.")
+                    if sr is None:
+                        st.error("The `speech_recognition` package is not installed in this environment.")
+                    else:
+                        recognizer = sr.Recognizer()
+                        try:
+                            with sr.Microphone() as source:
+                                st.info("Speak your ingredients...")
+                                audio = recognizer.listen(source, timeout=5)
+                                text = recognizer.recognize_google(audio)
+                                st.session_state["voice_text_to_add"] = text
+                        except sr.WaitTimeoutError:
+                            st.error("No speech detected")
+                        except sr.UnknownValueError:
+                            st.error("Could not understand speech")
+                        except sr.RequestError:
+                            st.error("Speech recognition service unavailable")
+                        except AttributeError:
+                            st.error("Microphone unavailable in this environment.")
+                        except OSError:
+                            st.error("No microphone device detected.")
+                        except Exception as e:
+                            st.error(f"Voice input failed: {e}")
         else:
             st.button("🎤 Voice Input (unavailable)", key="voice_input_disabled", disabled=True)
-            st.caption("Microphone input is unavailable in this environment.")
+            st.caption("Microphone input is unavailable in this environment. Use the 'Enable voice input' checkbox to attempt it.")
 
     with col2:
         st.subheader("Preferences")
@@ -203,6 +219,10 @@ def show_recipe_generator():
     # Display result
     if st.session_state.recipe_result and "error" not in st.session_state.recipe_result:
         result = st.session_state.recipe_result
+
+        missing_fields = [key for key in ['recipe name', 'ingredients', 'cooking steps', 'cooking time', 'calories', 'serving size', 'difficulty level', 'nutritional information', 'healthy alternatives'] if result.get(key) in (None, '', 'N/A')]
+        if missing_fields and result.get('raw_output'):
+            st.warning("Some structured recipe fields could not be parsed cleanly. Expand the raw output below to view the full AI response.")
 
         # Recipe card
         st.markdown('<div class="recipe-card">', unsafe_allow_html=True)
