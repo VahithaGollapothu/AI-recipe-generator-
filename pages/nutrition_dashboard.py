@@ -1,6 +1,12 @@
 import streamlit as st
-import plotly.graph_objects as go
-import plotly.express as px
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+    _PLOTLY_AVAILABLE = True
+except Exception:
+    go = None
+    px = None
+    _PLOTLY_AVAILABLE = False
 import pandas as pd
 import numpy as np
 
@@ -56,19 +62,23 @@ def show_nutrition_dashboard():
     labels = ['Protein', 'Carbs', 'Fats']
     values = [sample_nutrition['protein'], sample_nutrition['carbs'], sample_nutrition['fats']]
     colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
-
-    fig_pie = go.Figure(data=[go.Pie(
-        labels=labels,
-        values=values,
-        marker_colors=colors,
-        title="Macronutrients (g)"
-    )])
-    fig_pie.update_layout(
-        font=dict(size=14),
-        showlegend=True
-    )
-
-    st.plotly_chart(fig_pie, use_container_width=True)
+    if _PLOTLY_AVAILABLE:
+        fig_pie = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            marker_colors=colors,
+            title="Macronutrients (g)"
+        )])
+        fig_pie.update_layout(
+            font=dict(size=14),
+            showlegend=True
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+    else:
+        st.info("Interactive charts are unavailable because `plotly` is not installed.")
+        st.write("Macronutrients:")
+        for k, v in zip(labels, values):
+            st.write(f"- {k}: {v}g")
 
     # Progress bars
     st.subheader("🎯 Daily Goals Progress")
@@ -119,30 +129,36 @@ def show_nutrition_dashboard():
     weekly_calories = np.random.normal(sample_nutrition['calories'], 50, 7)
     weekly_protein = np.random.normal(sample_nutrition['protein'], 5, 7)
 
-    fig_line = go.Figure()
-    fig_line.add_trace(go.Scatter(
-        x=days,
-        y=weekly_calories,
-        mode='lines+markers',
-        name='Calories',
-        line=dict(color='#FF6B6B', width=3)
-    ))
-    fig_line.add_trace(go.Scatter(
-        x=days,
-        y=weekly_protein,
-        mode='lines+markers',
-        name='Protein (g)',
-        line=dict(color='#4ECDC4', width=3)
-    ))
+    if _PLOTLY_AVAILABLE:
+        fig_line = go.Figure()
+        fig_line.add_trace(go.Scatter(
+            x=days,
+            y=weekly_calories,
+            mode='lines+markers',
+            name='Calories',
+            line=dict(color='#FF6B6B', width=3)
+        ))
+        fig_line.add_trace(go.Scatter(
+            x=days,
+            y=weekly_protein,
+            mode='lines+markers',
+            name='Protein (g)',
+            line=dict(color='#4ECDC4', width=3)
+        ))
 
-    fig_line.update_layout(
-        title="Weekly Nutrition Tracking",
-        xaxis_title="Day",
-        yaxis_title="Amount",
-        font=dict(size=14)
-    )
+        fig_line.update_layout(
+            title="Weekly Nutrition Tracking",
+            xaxis_title="Day",
+            yaxis_title="Amount",
+            font=dict(size=14)
+        )
 
-    st.plotly_chart(fig_line, use_container_width=True)
+        st.plotly_chart(fig_line, use_container_width=True)
+    else:
+        st.info("Interactive charts are unavailable because `plotly` is not installed.")
+        st.write("Weekly calories:")
+        for d, c in zip(days, weekly_calories.tolist()):
+            st.write(f"- {d}: {int(c)} cal")
 
     # Nutrition tips
     with st.expander("💡 Nutrition Tips"):

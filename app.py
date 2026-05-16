@@ -4,9 +4,28 @@ from utils.theme import apply_theme
 from pages.meal_planner import show_meal_planner
 from pages.nutrition_dashboard import show_nutrition_dashboard
 from pages.chatbot import show_chatbot
-import speech_recognition as sr
 from utils.api_handler import generate_recipe
 import time
+
+try:
+    import speech_recognition as sr
+    _SR_AVAILABLE = True
+except Exception:
+    sr = None
+    _SR_AVAILABLE = False
+
+
+def is_voice_input_available():
+    if not _SR_AVAILABLE:
+        return False
+    try:
+        # This checks whether PyAudio is available and a microphone backend is usable.
+        sr.Microphone.list_microphone_names()
+        return True
+    except (AttributeError, OSError):
+        return False
+    except Exception:
+        return False
 
 # Page configuration
 st.set_page_config(
@@ -127,21 +146,30 @@ def show_recipe_generator():
         )
 
         # Voice input
-        if st.button("🎤 Voice Input", key="voice_input"):
-            with st.spinner("Listening..."):
-                recognizer = sr.Recognizer()
-                with sr.Microphone() as source:
-                    st.info("Speak your ingredients...")
+        voice_available = is_voice_input_available()
+        if voice_available:
+            if st.button("🎤 Voice Input", key="voice_input"):
+                with st.spinner("Listening..."):
+                    recognizer = sr.Recognizer()
                     try:
-                        audio = recognizer.listen(source, timeout=5)
-                        text = recognizer.recognize_google(audio)
-                        st.session_state["voice_text_to_add"] = text
+                        with sr.Microphone() as source:
+                            st.info("Speak your ingredients...")
+                            audio = recognizer.listen(source, timeout=5)
+                            text = recognizer.recognize_google(audio)
+                            st.session_state["voice_text_to_add"] = text
                     except sr.WaitTimeoutError:
                         st.error("No speech detected")
                     except sr.UnknownValueError:
                         st.error("Could not understand speech")
                     except sr.RequestError:
                         st.error("Speech recognition service unavailable")
+                    except AttributeError:
+                        st.error("Microphone unavailable in this environment.")
+                    except OSError:
+                        st.error("No microphone device detected.")
+        else:
+            st.button("🎤 Voice Input (unavailable)", key="voice_input_disabled", disabled=True)
+            st.caption("Microphone input is unavailable in this environment.")
 
     with col2:
         st.subheader("Preferences")
